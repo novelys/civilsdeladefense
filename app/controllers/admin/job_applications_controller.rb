@@ -27,11 +27,13 @@ class Admin::JobApplicationsController < Admin::BaseController
   # GET /admin/candidatures/1
   # GET /admin/candidatures/1.json
   def show
-    if action_name == "show"
-      user = @job_application.user
+    user = @job_application.user
+    if user.blank?
+      redirect_to admin_job_offer_path(@job_application.job_offer), notice: t(".user_deleted")
+    else
       @other_job_applications = user && user.job_applications.where.not(id: @job_application.id)
+      render action: :show, layout: layout_choice
     end
-    render action: :show, layout: layout_choice
   end
 
   alias_method :cvlm, :show

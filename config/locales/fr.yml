@@ -225,7 +225,6 @@ fr:
         ongoing_none: "Aucune candidature en cours"
       job_application:
         created_at: "Candidaté il y a %{time_ago_in_words}"
-      show:
     emails:
       create:
         success: "Courriel envoyé !"
@@ -289,6 +288,8 @@ fr:
       update:
         success: "Vos informations ont été mises à jour"
     job_applications:
+      show:
+        user_deleted: Ce compte candidat a été supprimé
       index:
         job_applications_filtered:
           zero: "Aucun résultat de recherche"

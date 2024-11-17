@@ -13,8 +13,11 @@
         = job_application.aasm.human_state
   .card-body
     - if can?(:manage, job_application)
-      = link_to [:admin, @job_offer, job_application] do
+      - if job_application.user.blank?
         = render "/admin/job_applications/job_application_card_body", job_application: job_application
+      - else
+        = link_to [:admin, @job_offer, job_application] do
+          = render "/admin/job_applications/job_application_card_body", job_application: job_application
     - else
       .job-application-modal-link
         = render "/admin/job_applications/job_application_card_body", job_application: job_application
