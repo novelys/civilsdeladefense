@@ -1,4 +1,4 @@
-%tr
+%tr{data: {id: element.id, resource_class: resource_class}, class: (element.respond_to?(:position) || (element.respond_to?(:parent_id) && element.parent_id.blank?)) ? "grabbable" : "no-drag"}
   - if defined?(level)
     %td
       .d-flex

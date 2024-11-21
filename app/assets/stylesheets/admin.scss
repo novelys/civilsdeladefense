@@ -472,3 +472,12 @@ a {
 .tooltip-rich.tooltip.show {
   opacity: 1;
 }
+
+.grabbable {
+  cursor: grab;
+}
+
+.grabbed {
+  cursor: grabbing;
+  background-color: $quaternary;
+}

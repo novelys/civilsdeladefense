@@ -139,6 +139,7 @@ Rails.application.routes.draw do
       resources :job_applications, path: "candidatures", only: %i[index]
     end
     namespace :settings, path: "parametres" do
+      resource :positions, only: :update
       resource :organization do
         member do
           get :edit_security

@@ -27,7 +27,7 @@
       - if resource_class == Page
         %th
       %th{style: 'width:120px;'}
-  %tbody
+  %tbody{data: {controller: 'settings'}}
     - if resource_class == Category
       - Category.roots.each do |root|
         - Category.each_with_level(root.self_and_descendants) do |category, level|

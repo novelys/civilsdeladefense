@@ -67,6 +67,9 @@ application.register("scroll", ScrollController)
 import SelectallController from "./selectall_controller"
 application.register("selectall", SelectallController)
 
+import SettingsController from "./settings_controller"
+application.register("settings", SettingsController)
+
 import SpinnerController from "./spinner_controller"
 application.register("spinner", SpinnerController)
 
