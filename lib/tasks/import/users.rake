@@ -33,4 +33,13 @@ namespace :import do
       "f66fdcc2-4116-4cda-a6ea-b90f0f7dafe8" => "030301a2-0b2b-4b0c-8ea5-5bfc9325a269" # Confirmé
     }.fetch(experience_level_id)
   end
+
+  def foreign_language_id(foreign_language_id)
+    # Key: id DGA, Value: id CVD
+    {
+      "188dbb29-cbfd-4422-b7de-6f7abddd2b17" => "4f2051e4-8d62-4ca1-80d5-a35694c1cb29", # Intermédiaire / B1 / B2
+      "59b02d86-0a74-45eb-b891-76facd073794" => "5274d213-4364-4267-9e63-e5f49ab1a69b", # Avancé / C1 / C2
+      "7427a756-90bb-48c5-a25c-1fac11861dbb" => "509eb999-0b3c-4e7b-bafa-5626e134c961" # Débutant / A1 / A2
+    }.fetch(foreign_language_id)
+  end
 end
