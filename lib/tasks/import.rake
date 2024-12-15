@@ -1,5 +1,99 @@
 namespace :import do
+  task administrators: :environment do
+    Importer.import_json(ENV["ADMINISTRATORS_URL"]).select do |raw|
+      Administrator.where(email: raw["email"]).empty?
+    end.each do |raw|
+      puts "Importing administrator: #{raw["email"]}"
+
+      attributes = raw.except("organization_id").merge(organization: Organization.first)
+      attributes = attributes.except("supervisor_administrator_id") unless Administrator.exists?(id: raw["supervisor_administrator_id"])
+      attributes = attributes.except("grand_employer_administrator_id") unless Administrator.exists?(id: raw["grand_employer_administrator_id"])
+      attributes = attributes.except("inviter_id") unless Administrator.exists?(id: raw["inviter_id"])
+
+      admin = Administrator.new(attributes)
+      admin.skip_confirmation!
+      admin.save(validate: false)
+    end
+  end
+
+  task benefits: :environment do
+    Importer.import_json(ENV["BENEFITS_URL"]).select do |benefit|
+      Benefit.find_by(id: benefit["id"]).nil?
+    end.each do |raw|
+      puts "Importing benefit: #{raw["name"]}"
+
+      Benefit.create!(raw)
+    end
+  end
+  task contract_durations: :environment do
+    Importer.import_json(ENV["CONTRACT_DURATIONS_URL"]).select do |raw|
+      ContractDuration.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing contract duration: #{raw["name"]}"
+
+      ContractDuration.create!(raw)
+    end
+  end
+  task email_templates: :environment do
+    Importer.import_json(ENV["EMAIL_TEMPLATES_URL"]).select do |raw|
+      EmailTemplate.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing email template: #{raw["title"]}"
+
+      EmailTemplate.create!(raw)
+    end
+  end
+  task employers: :environment do
+    Importer.import_json(ENV["EMPLOYERS_URL"]).select do |raw|
+      Employer.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing employer: #{raw["name"]}"
+
+      Employer.create!(raw.except("lft", "rgt", "depth"))
+    end
+  end
+
+  task job_application_file_types: :environment do
+    Importer.import_json(ENV["JOB_APPLICATION_FILE_TYPES_URL"]).select do |raw|
+      JobApplicationFileType.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      if job_application_file_type_id(raw["id"]).nil?
+        puts "Importing job application file type: #{raw["name"]}"
+
+        JobApplicationFileType.create!(raw)
+      else
+        puts "No need to import mapped job application file type: #{raw["name"]}"
+      end
+    end
+  end
+
+  task sectors: :environment do
+    Importer.import_json(ENV["SECTORS_URL"]).select do |raw|
+      Sector.find_by(id: raw["id"]).nil? && Sector.find_by(name: raw["name"]).nil?
+    end.each do |raw|
+      puts "Importing sector: #{raw["name"]}"
+
+      Sector.create!(raw)
+    end
+  end
+
+  task user_menu_links: :environment do
+    Importer.import_json(ENV["USER_MENU_LINKS_URL"]).select do |raw|
+      UserMenuLink.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing user menu link: #{raw["name"]}"
+
+      UserMenuLink.create!(raw)
+    end
+  end
+
+  task users: :environment do
+  end
+
   task job_offers: :environment do
+  end
+
+  task job_applications: :environment do
   end
 
   private
@@ -115,5 +209,88 @@ namespace :import do
       "61206bd5-3c2c-4eff-9477-7bca53aa4fce" => "b0fa530b-0ced-43b5-8be8-0bf36360f301", # Systèmes d'information
       "e0477333-fdd7-4cf8-b20d-08a826a1fa0b" => "b0fa530b-0ced-43b5-8be8-0bf36360f301" # TEST, ESSAI ET VALIDATION
     }.fetch(category_id)
+  end
+
+  def foreign_language_id(foreign_language_id)
+    # Key: id DGA, Value: id CVD
+    {
+      "df356daa-9965-4366-8f52-b656f0fc3dc0" => "84d55436-d4b4-4aec-ae34-0b5d43789e96", # Anglais
+      "d7489a3b-5e97-4d58-bf9c-99102bbb279c" => "2332d509-fb30-4f1b-9194-a5f1af3917e7" # Allemand
+    }.fetch(foreign_language_id)
+  end
+
+  def study_level_id(study_level_id)
+    # Key: id DGA, Value: id CVD
+    {
+      "449ff1c1-ffc4-485f-894f-81e1b50ffb8c" => "8ab3d972-a205-4792-a0c8-0f1d3afcd62a", # Bac + 5 / Ecole Ingénieur / Master
+      "6b2b1bf0-b0b8-49e4-ad6f-04b6321f6bc7" => "1be7986c-3565-4890-aa97-d6d631ab5fbd", # Doctorat
+      "c2bcb292-1a02-4de2-a072-1ccdf8fcb33d" => "8ab3d972-a205-4792-a0c8-0f1d3afcd62a", # Bac + 5 / Ecole Ingénieur / Master / Doctorat
+      "e1f497ad-5c7d-458b-b557-b765f4ba7d39" => "870d19a4-e97b-42b3-95ae-39fed815a702", # Bac + 2 / Bac + 3
+      "fca43c8b-27ac-46c6-b873-5f5bb8ba3194" => "5ae0768c-e28b-4271-9ee2-9132c3c0b4e6" # Bac + 2
+    }.fetch(study_level_id)
+  end
+
+  def experience_level_id(experience_level_id)
+    # Key: id DGA, Value: id CVD
+    {
+      "036967cd-f4ed-4513-9967-aa5170363b45" => "0939a5e4-268c-488c-9071-659d6843d700", # Junior
+      "067d1c9e-c9a0-41ac-ae37-ce3352c62465" => "0939a5e4-268c-488c-9071-659d6843d700", # Débutant
+      "2e42e48d-c974-4c25-a1e3-9d76d5398961" => "5ee6e2c0-56fb-42c8-82b1-903676bb9a09", # Expérimenté
+      "4b711c3b-6737-4139-9756-cceca381b67c" => "d7994814-415d-443c-ad6f-a627ef9f10a4", # Indifférent
+      "f66fdcc2-4116-4cda-a6ea-b90f0f7dafe8" => "030301a2-0b2b-4b0c-8ea5-5bfc9325a269" # Confirmé
+    }.fetch(experience_level_id)
+  end
+
+  def foreign_language_id(foreign_language_id)
+    # Key: id DGA, Value: id CVD
+    {
+      "188dbb29-cbfd-4422-b7de-6f7abddd2b17" => "4f2051e4-8d62-4ca1-80d5-a35694c1cb29", # Intermédiaire / B1 / B2
+      "59b02d86-0a74-45eb-b891-76facd073794" => "5274d213-4364-4267-9e63-e5f49ab1a69b", # Avancé / C1 / C2
+      "7427a756-90bb-48c5-a25c-1fac11861dbb" => "509eb999-0b3c-4e7b-bafa-5626e134c961" # Débutant / A1 / A2
+    }.fetch(foreign_language_id)
+  end
+
+  def rejection_reason_id(rejection_reason_id)
+    # Key: id DGA, Value: id CVD
+    {
+      "acb6861b-fcb8-4509-8bfc-81f11dab1e19" => "a3cc5a0f-ccd5-4b4b-bb81-9193cdf686f8", # CANDIDAT - AUTRE POSTE TROUVE
+      "45bde73d-08d8-4d32-98b3-26f4de2eb6da" => "3f9a052a-5b00-4d7b-a450-9dd8d6f524be", # CANDIDAT - DELAI DE RECRUTEMENT
+      "f9099b9e-0003-4b48-89b6-81ea1115260a" => "f97738e5-87d4-4ef6-8272-6a770149e667", # CANDIDAT - DESISTEMENT AUTRE
+      "8447a947-ad7c-45c4-be17-3d7ae62f9e99" => "223febef-2111-440e-ab39-b34cff66b6c4", # CANDIDAT - INADEQUATION POSTE
+      "dad3ee5a-3fe8-4a2a-b030-115811000c95" => "d4626094-a358-4bc0-97a5-89b0a41e800b", # CANDIDAT - LOCALISATION
+      "27cd8c69-56b6-4e43-b676-12e6f3ea5b50" => "28e23f4d-299f-4ed9-87eb-a72935d93197", # CANDIDAT - NATURE DU CONTRAT
+      "1482d532-2799-4a37-9f64-9e49a1b22456" => "79c15c46-04bf-41eb-9acd-e9713bb4117d", # CANDIDAT - QUALITE DE L'ENTRETIEN
+      "6f880073-6e04-45c1-a234-d7a0d2052bd9" => "35c0d20a-7959-4615-80ec-c5ab17966926", # CANDIDAT - REMUNERATION
+      "294ee4ce-27f0-4094-bf05-d01b3788ae08" => "57b75588-0384-4547-a994-611da5161ab4", # EMPLOYEUR - AUTRE CANDIDAT TROUVE
+      "edae179a-6441-4cf9-880e-553b2b749d79" => "f319db31-1fad-489c-8bf3-77c381f191c8", # EMPLOYEUR - DIPLOME NON RECEVABLE
+      "91438bac-dfff-4517-b441-e4cc7e7c4ac0" => "40c615a0-59d2-4679-b977-f3f3f383701d", # EMPLOYEUR - DISPONIBILITE
+      "b79c37f9-798f-4e2f-8f4e-40e8af72d79a" => "3bd0cabc-af78-4f53-a064-e1346312422d", # EMPLOYEUR - NATURE DU CONTRAT
+      "bcce9eba-0fff-4bbc-9899-dbe7a9006281" => "64303742-f40c-4d62-aff4-db5a4f136e98", # EMPLOYEUR - PROFIL INADAPTE COMPETENCES SOUS-QUALIFIEES
+      "bf182baf-6923-45ca-8461-6812a9b713fe" => "eb28be8c-6a98-495d-b4ce-5d70dd9b4dc0", # EMPLOYEUR - PROFIL INADAPTE COMPETENCES SURQUALIFIEES
+      "522d4940-f817-46c4-97b0-59a265f0b200" => "f319db31-1fad-489c-8bf3-77c381f191c8", # EMPLOYEUR - PROFIL INADAPTE FORMATION
+      "38bbaa95-0d5f-4acb-b12f-5ac3bea722ab" => "8de2c347-4425-4189-bd21-5a6d843a21dd", # EMPLOYEUR - PROFIL INADAPTE SAVOIR ETRE
+      "33e337cd-f820-4de6-b067-717b8e8f3b36" => "a43abecb-2ac0-4509-b6c2-aad0f3c41cc7", # EMPLOYEUR - REMUNERATION
+      "edee7679-4258-40ed-b8f9-c47279e335e2" => "402a1f85-9b1a-4d45-816f-e4ffe9d63db6" # EMPLOYEUR - SECURITE
+    }.fetch(rejection_reason_id)
+  end
+
+  def job_application_file_type_id(job_application_file_type_id)
+    # Key: id DGA, Value: id CVD
+    {
+      "059479d2-3304-499b-95c9-0f291347798e" => "472c8e34-bd00-4cc3-bc1f-1454780ce81a", # Contrat signé
+      "2af8371a-455a-4cec-83cb-d23811d13db3" => "e8a60ab5-e111-4f01-bb67-03809170beba", # JAPD / JDC / Certificat service militaire
+      "2cfaff1a-b593-4106-a8b7-cb0558bd6b08" => "0ea29d20-c57f-4bd0-bf67-36e80725df9a", # Diplômes / attestation de réussite / certificat de
+      "388fc9f4-31ff-4702-a622-bb732324b29d" => "c316a36c-8579-479f-b01b-f8bfd774b94a", # Fiche de poste
+      "55ab33c9-8af1-4544-ae83-31826e720169" => "0741558f-c6b3-43c7-9152-8dd50b56dbc9", # Rapport sur la candidature retenue
+      "5fe62fca-bc47-4416-84a4-88a3c75fbbaf" => "d0c6143c-0009-4f1c-9518-00ddb4321100", # Relevé d'identité bancaire
+      "6e463ba6-a524-4d10-98d1-50b7ab8b7e0c" => "018ab55a-ae14-4204-9e80-4d8eed988ead", # Carte d'identité / Passeport
+      "81f12278-cf1c-4432-93b4-418d63f7ed2b" => "e8e81142-216c-41c3-ae64-aaa9a92d15f9", # Proposition salariale signée par le candidat
+      "a5d49098-6aca-45a0-b587-354ff31c516c" => "a09f2c4a-9ab3-4b27-a9ce-e33ea361dd1c", # Livret de famille / extrait d'acte de
+      "bda53c0d-b16a-46dc-87f6-f5c830b31009" => "97ea21d4-74cf-4c22-9108-65a5f47022b6", # Carte Vitale
+      "cb8bd78b-5570-4905-83ac-4527f6be1472" => "2db94687-e306-4fab-a763-bb97a3fdffda", # Lettre de Motivation
+      "d5747e46-1ed6-404b-87f1-fce1379b3a3f" => "1d5bb4eb-e90c-470e-b015-3bd10e3ebf0a", # CV
+      "f08d8404-db62-47dd-ba39-fc2f28dfacf2" => "4088a171-ffe3-40d2-a013-4c1781d64268", # Contrat
+      "f6750d74-20f7-46cf-b509-165a7a456cd4" => "3b8a726a-7d32-4753-8278-6e11fccc77ca" # Justificatif de domicile de moins de 6 mois
+    }.dig(job_application_file_type_id)
   end
 end
