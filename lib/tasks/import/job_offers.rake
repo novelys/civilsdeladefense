@@ -26,4 +26,16 @@ namespace :import do
       "da6827a2-2dfd-4c41-b534-2c37c3d412ce" => "4353f0b7-ca66-4569-8d2f-b0ec6d760d60" # Ingénieur / Cadre
     }.fetch(professional_category_id)
   end
+
+  def level_id(level_id)
+    # Key: id DGA, Value: id CVD
+    {
+      "1afe2068-7383-4305-aa7d-b7c803467776" => "01e6e871-eb4e-4e75-8578-2caefe8b77a8", # 2
+      "5fbb7d73-b3d3-4873-89f8-ccd6489072ac" => "0ca6a1c3-4b5a-4ce6-bd22-72dda7918fae", # 1
+      "8bc4ad01-6fc9-4282-aaab-1790c99945b2" => "01e6e871-eb4e-4e75-8578-2caefe8b77a8", # B
+      "b4cd7b34-23c1-468f-9e6a-d3ac57883bf8" => "53968354-4859-4577-86e7-7a12d5b899a8", # C
+      "ba07b510-b489-46d2-a59b-31b72a9296ce" => "0ca6a1c3-4b5a-4ce6-bd22-72dda7918fae", # A
+      "c980ce67-e678-4bc0-8f14-78f21827273d" => "53968354-4859-4577-86e7-7a12d5b899a8" # 3
+    }.fetch(level_id)
+  end
 end
