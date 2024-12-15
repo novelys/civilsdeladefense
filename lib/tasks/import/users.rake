@@ -22,4 +22,15 @@ namespace :import do
       "fca43c8b-27ac-46c6-b873-5f5bb8ba3194" => "5ae0768c-e28b-4271-9ee2-9132c3c0b4e6" # Bac + 2
     }.fetch(study_level_id)
   end
+
+  def experience_level_id(experience_level_id)
+    # Key: id DGA, Value: id CVD
+    {
+      "036967cd-f4ed-4513-9967-aa5170363b45" => "0939a5e4-268c-488c-9071-659d6843d700", # Junior
+      "067d1c9e-c9a0-41ac-ae37-ce3352c62465" => "0939a5e4-268c-488c-9071-659d6843d700", # Débutant
+      "2e42e48d-c974-4c25-a1e3-9d76d5398961" => "5ee6e2c0-56fb-42c8-82b1-903676bb9a09", # Expérimenté
+      "4b711c3b-6737-4139-9756-cceca381b67c" => "d7994814-415d-443c-ad6f-a627ef9f10a4", # Indifférent
+      "f66fdcc2-4116-4cda-a6ea-b90f0f7dafe8" => "030301a2-0b2b-4b0c-8ea5-5bfc9325a269" # Confirmé
+    }.fetch(experience_level_id)
+  end
 end
