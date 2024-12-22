@@ -1,3 +1,5 @@
+require "uri"
+
 namespace :import do
   task administrators: :environment do
     Importer.import_json(ENV["ADMINISTRATORS_URL"]).select do |raw|
@@ -5,7 +7,7 @@ namespace :import do
     end.each do |raw|
       puts "Importing administrator: #{raw["email"]}"
 
-      attributes = raw.except("organization_id").merge(organization: Organization.first)
+      attributes = raw.except("organization_id").merge(organization)
       attributes = attributes.except("supervisor_administrator_id") unless Administrator.exists?(id: raw["supervisor_administrator_id"])
       attributes = attributes.except("grand_employer_administrator_id") unless Administrator.exists?(id: raw["grand_employer_administrator_id"])
       attributes = attributes.except("inviter_id") unless Administrator.exists?(id: raw["inviter_id"])
@@ -78,6 +80,33 @@ namespace :import do
   end
 
   task users: :environment do
+    Importer.import_json(ENV["USERS_URL"]).each_with_index do |raw, index|
+      user = User.find_by(id: raw["id"])
+      puts "User already present: #{raw["id"]}" && next if user.present?
+
+      user = User.find_by(email: raw["email"])
+      puts "User already present: #{raw["email"]}" && next if user.present?
+
+      puts "Importing user: #{raw["email"]} (#{index + 1})"
+      user = User.new(raw.except("organization_id", "gender").merge(organization))
+
+      photo_filename = raw["photo_file_name"]
+      if photo_filename.present?
+        begin
+          url = "https://ict-tct.contractuels.civils.defense.gouv.fr/downloads/#{raw["id"]}?resource_type=User&attribute_name=photo"
+          content = URI.open(url, "X-Download-Secret-Key" => ENV["DOWNLOAD_SECRET_KEY"]).read.force_encoding("UTF-8") # rubocop:disable Security/Open
+          File.write(photo_filename, content)
+          user.photo = File.open(photo_filename)
+        rescue OpenURI::HTTPError => e
+          puts "Failed to download photo for user: #{raw["email"]} => #{e}"
+        end
+      end
+
+      user.skip_confirmation!
+      user.save(validate: false)
+
+      File.delete(photo_filename) if photo_filename.present? && File.exist?(photo_filename)
+    end
   end
 
   task job_offers: :environment do
@@ -87,6 +116,11 @@ namespace :import do
   end
 
   private
+
+  def organization
+    @organization ||= Organization.find("9573652a-7b89-44e8-864c-75c0ec3a8ede")
+    {organization: @organization}
+  end
 
   def sector_id(sector_id)
     # Key: id DGA, Value: id CVD
