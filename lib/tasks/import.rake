@@ -67,16 +67,6 @@ namespace :import do
     end
   end
 
-  task sectors: :environment do
-    Importer.import_json(ENV["SECTORS_URL"]).select do |raw|
-      Sector.find_by(id: raw["id"]).nil? && Sector.find_by(name: raw["name"]).nil?
-    end.each do |raw|
-      puts "Importing sector: #{raw["name"]}"
-
-      Sector.create!(raw)
-    end
-  end
-
   task user_menu_links: :environment do
     Importer.import_json(ENV["USER_MENU_LINKS_URL"]).select do |raw|
       UserMenuLink.find_by(id: raw["id"]).nil?
@@ -97,6 +87,14 @@ namespace :import do
   end
 
   private
+
+  def sector_id(sector_id)
+    # Key: id DGA, Value: id CVD
+    {
+      "98d5368e-33ce-478c-a6aa-775e21826572" => "af22b79f-e95b-49e4-8a12-7de51456c3a7",  # Tranverse
+      "9e064856-7342-4000-a428-c31a9766939a" => "e8b6aec2-b2d9-46d4-909d-64f6e52529f3"  # Technique
+    }.fetch(sector_id)
+  end
 
   def archiving_reason_id(archiving_reason_id)
     # Key: id DGA, Value: id CVD
