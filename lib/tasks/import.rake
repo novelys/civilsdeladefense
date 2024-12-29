@@ -99,6 +99,7 @@ namespace :import do
           user.photo = File.open(photo_filename)
         rescue OpenURI::HTTPError => e
           puts "Failed to download photo for user: #{raw["email"]} => #{e}"
+          user.photo = nil
         end
       end
 
@@ -106,6 +107,40 @@ namespace :import do
       user.save(validate: false)
 
       File.delete(photo_filename) if photo_filename.present? && File.exist?(photo_filename)
+    end
+  end
+
+  task user_profiles: :environment do
+    Importer.import_json(ENV["PROFILES_URL"]).select do |raw|
+      Profile.find_by(id: raw["id"]).nil? && raw["profileable_type"] != "User"
+    end.each do |raw|
+      puts "Importing user profile: #{raw["id"]}"
+
+      profile = Profile.new(
+        raw.except(
+          "availability_range_id",
+          "age_range_id"
+        ).merge(
+          study_level_id: study_level_id(raw["study_level_id"]),
+          experience_level_id: experience_level_id(raw["experience_level_id"])
+        )
+      )
+
+      resume_file_name = raw["resume_file_name"]
+      if resume_file_name.present?
+        begin
+          url = "https://ict-tct.contractuels.civils.defense.gouv.fr/downloads/#{raw["id"]}?resource_type=Profile&attribute_name=resume"
+          content = URI.open(url, "X-Download-Secret-Key" => ENV["DOWNLOAD_SECRET_KEY"]).read.force_encoding("UTF-8") # rubocop:disable Security/Open
+          File.write(resume_file_name, content)
+          profile.resume = File.open(resume_file_name)
+        rescue OpenURI::HTTPError => e
+          puts "Failed to download photo for user: #{raw["email"]} => #{e}"
+          profile.resume = nil
+        end
+      end
+
+      profile.save(validate: false)
+      File.delete(resume_file_name) if resume_file_name.present? && File.exist?(resume_file_name)
     end
   end
 
@@ -270,7 +305,7 @@ namespace :import do
       "2e42e48d-c974-4c25-a1e3-9d76d5398961" => "5ee6e2c0-56fb-42c8-82b1-903676bb9a09", # Expérimenté
       "4b711c3b-6737-4139-9756-cceca381b67c" => "d7994814-415d-443c-ad6f-a627ef9f10a4", # Indifférent
       "f66fdcc2-4116-4cda-a6ea-b90f0f7dafe8" => "030301a2-0b2b-4b0c-8ea5-5bfc9325a269" # Confirmé
-    }.fetch(experience_level_id)
+    }.dig(experience_level_id)
   end
 
   def foreign_language_id(foreign_language_id)
