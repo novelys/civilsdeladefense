@@ -1,8 +1,19 @@
 require "uri"
 
 namespace :import do
+  task employers: :environment do
+    import_json("employers.json").select do |raw|
+      Employer.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing employer: #{raw["name"]}"
+
+      Employer.create!(raw.except("lft", "rgt", "depth"))
+    end
+    File.delete("employers.json")
+  end
+
   task administrators: :environment do
-    Importer.import_json(ENV["ADMINISTRATORS_URL"]).select do |raw|
+    import_json("administrators.json").select do |raw|
       Administrator.where(email: raw["email"]).empty?
     end.each do |raw|
       puts "Importing administrator: #{raw["email"]}"
@@ -16,47 +27,44 @@ namespace :import do
       admin.skip_confirmation!
       admin.save(validate: false)
     end
+    File.delete("administrators.json")
   end
 
   task benefits: :environment do
-    Importer.import_json(ENV["BENEFITS_URL"]).select do |benefit|
+    import_json("benefits.json").select do |benefit|
       Benefit.find_by(id: benefit["id"]).nil?
     end.each do |raw|
       puts "Importing benefit: #{raw["name"]}"
 
       Benefit.create!(raw)
     end
+    File.delete("benefits.json")
   end
+
   task contract_durations: :environment do
-    Importer.import_json(ENV["CONTRACT_DURATIONS_URL"]).select do |raw|
+    import_json("contract_durations.json").select do |raw|
       ContractDuration.find_by(id: raw["id"]).nil?
     end.each do |raw|
       puts "Importing contract duration: #{raw["name"]}"
 
       ContractDuration.create!(raw)
     end
+    File.delete("contract_durations.json")
   end
+
   task email_templates: :environment do
-    Importer.import_json(ENV["EMAIL_TEMPLATES_URL"]).select do |raw|
+    import_json("email_templates.json").select do |raw|
       EmailTemplate.find_by(id: raw["id"]).nil?
     end.each do |raw|
       puts "Importing email template: #{raw["title"]}"
 
       EmailTemplate.create!(raw)
     end
-  end
-  task employers: :environment do
-    Importer.import_json(ENV["EMPLOYERS_URL"]).select do |raw|
-      Employer.find_by(id: raw["id"]).nil?
-    end.each do |raw|
-      puts "Importing employer: #{raw["name"]}"
-
-      Employer.create!(raw.except("lft", "rgt", "depth"))
-    end
+    File.delete("email_templates.json")
   end
 
   task job_application_file_types: :environment do
-    Importer.import_json(ENV["JOB_APPLICATION_FILE_TYPES_URL"]).select do |raw|
+    import_json("job_application_file_types.json").select do |raw|
       JobApplicationFileType.find_by(id: raw["id"]).nil?
     end.each do |raw|
       if job_application_file_type_id(raw["id"]).nil?
@@ -67,20 +75,22 @@ namespace :import do
         puts "No need to import mapped job application file type: #{raw["name"]}"
       end
     end
+    File.delete("job_application_file_types.json")
   end
 
   task user_menu_links: :environment do
-    Importer.import_json(ENV["USER_MENU_LINKS_URL"]).select do |raw|
+    import_json("user_menu_links.json").select do |raw|
       UserMenuLink.find_by(id: raw["id"]).nil?
     end.each do |raw|
       puts "Importing user menu link: #{raw["name"]}"
 
       UserMenuLink.create!(raw)
     end
+    File.delete("user_menu_links.json")
   end
 
   task users: :environment do
-    Importer.import_json(ENV["USERS_URL"]).each_with_index do |raw, index|
+    import_json("users.json").each_with_index do |raw, index|
       user = User.find_by(id: raw["id"])
       puts "User already present: #{raw["id"]}" && next if user.present?
 
@@ -108,10 +118,11 @@ namespace :import do
 
       File.delete(photo_filename) if photo_filename.present? && File.exist?(photo_filename)
     end
+    File.delete("users.json")
   end
 
   task user_profiles: :environment do
-    Importer.import_json(ENV["PROFILES_URL"]).select do |raw|
+    import_json("profiles.json").select do |raw|
       Profile.find_by(id: raw["id"]).nil? && raw["profileable_type"] != "User"
     end.each do |raw|
       puts "Importing user profile: #{raw["id"]}"
@@ -142,10 +153,11 @@ namespace :import do
       profile.save(validate: false)
       File.delete(resume_file_name) if resume_file_name.present? && File.exist?(resume_file_name)
     end
+    File.delete("profiles.json")
   end
 
   task job_offers: :environment do
-    Importer.import_json(ENV["JOB_OFFERS_URL"]).select do |raw|
+    import_json("job_offers.json").select do |raw|
       JobOffer.find_by(id: raw["id"]).nil?
     end.each do |raw|
       puts "Importing job offer: #{raw["title"]}"
@@ -173,12 +185,7 @@ namespace :import do
       job_offer = JobOffer.new(attributes)
       job_offer.save(validate: false)
     end
-  end
-
-  def admin_mapping
-    @admin_mapping ||= Importer.import_json(ENV["ADMINISTRATORS_URL"]).each_with_object({}) do |raw, hash|
-      hash[raw["id"]] = Administrator.find_by(email: raw["email"]).id
-    end
+    File.delete("job_offers.json")
   end
 
   task job_applications: :environment do
@@ -186,9 +193,21 @@ namespace :import do
 
   private
 
+  def import_json(file_name)
+    Aws::S3::Resource.new.bucket("erecrutement").object(file_name).download_file(file_name)
+    JSON.parse(File.read(file_name)).sort_by { |item| item["created_at"] }
+  end
+
   def organization
     @organization ||= Organization.find("9573652a-7b89-44e8-864c-75c0ec3a8ede")
     {organization: @organization}
+  end
+
+  def admin_mapping
+    @admin_mapping ||= import_json("administrators.json").each_with_object({}) do |raw, hash|
+      hash[raw["id"]] = Administrator.find_by(email: raw["email"]).id
+    end
+    File.delete("administrators.json") if File.exist?("administrators.json")
   end
 
   def sector_id(sector_id)
