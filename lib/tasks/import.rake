@@ -189,6 +189,20 @@ namespace :import do
   end
 
   task job_applications: :environment do
+    import_json("job_applications.json").select do |raw|
+      JobApplication.find_by(id: raw["id"]).nil?
+    end.each_with_index do |raw, index|
+      puts "Importing job application: #{raw["id"]} (#{index + 1})"
+
+      attributes = raw.except(:organization_id).merge(organization)
+      attributes = attributes.merge(user_id: user_mapping[raw["user_id"]]) unless User.exists?(id: raw["user_id"])
+      attributes = attributes.merge(category_id: category_id(raw["category_id"]))
+      attributes = attributes.merge(rejection_reason_id: rejection_reason_id(raw["rejection_reason_id"]))
+
+      job_application = JobApplication.new(attributes)
+      job_application.save(validate: false)
+    end
+    File.delete("job_applications.json")
   end
 
   private
@@ -207,7 +221,12 @@ namespace :import do
     @admin_mapping ||= import_json("administrators.json").each_with_object({}) do |raw, hash|
       hash[raw["id"]] = Administrator.find_by(email: raw["email"]).id
     end
-    File.delete("administrators.json") if File.exist?("administrators.json")
+  end
+
+  def user_mapping
+    @user_mapping ||= import_json("users.json").each_with_object({}) do |raw, hash|
+      hash[raw["id"]] = User.find_by(email: raw["email"]).id
+    end
   end
 
   def sector_id(sector_id)
