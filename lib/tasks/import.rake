@@ -145,6 +145,40 @@ namespace :import do
   end
 
   task job_offers: :environment do
+    Importer.import_json(ENV["JOB_OFFERS_URL"]).select do |raw|
+      JobOffer.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing job offer: #{raw["title"]}"
+
+      attributes = raw.except(
+        :organization_id
+      ).merge(
+        organization,
+        category_id: category_id(raw["category_id"]),
+        contract_type_id: contract_type_id(raw["contract_type_id"]),
+        experience_level_id: experience_level_id(raw["experience_level_id"]),
+        professional_category_id: professional_category_id(raw["professional_category_id"]),
+        sector_id: sector_id(raw["sector_id"]),
+        study_level_id: study_level_id(raw["study_level_id"]),
+        level_id: level_id(raw["level_id"]),
+        archiving_reason_id: archiving_reason_id(raw["archiving_reason_id"])
+      )
+      if JobOffer.exists?(slug: raw["slug"])
+        attributes = attributes.merge(slug: "#{raw["slug"]}-#{SecureRandom.hex(4)}")
+      end
+      unless Administrator.exists?(id: raw["owner_id"])
+        attributes = attributes.merge(owner_id: admin_mapping[raw["owner_id"]])
+      end
+
+      job_offer = JobOffer.new(attributes)
+      job_offer.save(validate: false)
+    end
+  end
+
+  def admin_mapping
+    @admin_mapping ||= Importer.import_json(ENV["ADMINISTRATORS_URL"]).each_with_object({}) do |raw, hash|
+      hash[raw["id"]] = Administrator.find_by(email: raw["email"]).id
+    end
   end
 
   task job_applications: :environment do
@@ -162,7 +196,7 @@ namespace :import do
     {
       "98d5368e-33ce-478c-a6aa-775e21826572" => "af22b79f-e95b-49e4-8a12-7de51456c3a7",  # Tranverse
       "9e064856-7342-4000-a428-c31a9766939a" => "e8b6aec2-b2d9-46d4-909d-64f6e52529f3"  # Technique
-    }.fetch(sector_id)
+    }.dig(sector_id)
   end
 
   def archiving_reason_id(archiving_reason_id)
@@ -170,14 +204,14 @@ namespace :import do
     {
       "4ca13554-9674-4a57-8f07-1b8203efacb1" => "e091c6a6-7039-46b2-a128-ea2df35e949a", # Offre obsolète
       "65661b9b-4fec-49ce-87df-01c0b4172ae3" => "7629b44f-a674-47a0-ac77-ee73d6b38156" # Candidat trouvé
-    }.fetch(archiving_reason_id)
+    }.dig(archiving_reason_id)
   end
 
   def contract_type_id(contract_type_id)
     # Key: id DGA, Value: id CVD
     {
       "c3ff27eb-6833-4cf2-9dc3-7151201bc68f" => "c42553ee-0b18-4117-b3de-741dca6fd340" # CDI
-    }.fetch(contract_type_id)
+    }.dig(contract_type_id)
   end
 
   def professional_category_id(professional_category_id)
@@ -185,7 +219,7 @@ namespace :import do
     {
       "1b5a2466-498a-4e13-ac93-0ef43314859a" => "973219d1-c36f-464c-a6a7-acd31a29593f", # Technicien
       "da6827a2-2dfd-4c41-b534-2c37c3d412ce" => "4353f0b7-ca66-4569-8d2f-b0ec6d760d60" # Ingénieur / Cadre
-    }.fetch(professional_category_id)
+    }.dig(professional_category_id)
   end
 
   def level_id(level_id)
@@ -197,7 +231,7 @@ namespace :import do
       "b4cd7b34-23c1-468f-9e6a-d3ac57883bf8" => "53968354-4859-4577-86e7-7a12d5b899a8", # C
       "ba07b510-b489-46d2-a59b-31b72a9296ce" => "0ca6a1c3-4b5a-4ce6-bd22-72dda7918fae", # A
       "c980ce67-e678-4bc0-8f14-78f21827273d" => "53968354-4859-4577-86e7-7a12d5b899a8" # 3
-    }.fetch(level_id)
+    }.dig(level_id)
   end
 
   def category_id(category_id)
@@ -275,7 +309,7 @@ namespace :import do
       "eac4bdce-170f-4336-8c1c-7df92f2f7428" => "3b209b84-a4aa-463c-a78f-61d0234af404", # Télécommunications
       "61206bd5-3c2c-4eff-9477-7bca53aa4fce" => "b0fa530b-0ced-43b5-8be8-0bf36360f301", # Systèmes d'information
       "e0477333-fdd7-4cf8-b20d-08a826a1fa0b" => "b0fa530b-0ced-43b5-8be8-0bf36360f301" # TEST, ESSAI ET VALIDATION
-    }.fetch(category_id)
+    }.dig(category_id)
   end
 
   def foreign_language_id(foreign_language_id)
@@ -283,7 +317,7 @@ namespace :import do
     {
       "df356daa-9965-4366-8f52-b656f0fc3dc0" => "84d55436-d4b4-4aec-ae34-0b5d43789e96", # Anglais
       "d7489a3b-5e97-4d58-bf9c-99102bbb279c" => "2332d509-fb30-4f1b-9194-a5f1af3917e7" # Allemand
-    }.fetch(foreign_language_id)
+    }.dig(foreign_language_id)
   end
 
   def study_level_id(study_level_id)
@@ -294,7 +328,7 @@ namespace :import do
       "c2bcb292-1a02-4de2-a072-1ccdf8fcb33d" => "8ab3d972-a205-4792-a0c8-0f1d3afcd62a", # Bac + 5 / Ecole Ingénieur / Master / Doctorat
       "e1f497ad-5c7d-458b-b557-b765f4ba7d39" => "870d19a4-e97b-42b3-95ae-39fed815a702", # Bac + 2 / Bac + 3
       "fca43c8b-27ac-46c6-b873-5f5bb8ba3194" => "5ae0768c-e28b-4271-9ee2-9132c3c0b4e6" # Bac + 2
-    }.fetch(study_level_id)
+    }.dig(study_level_id)
   end
 
   def experience_level_id(experience_level_id)
@@ -314,7 +348,7 @@ namespace :import do
       "188dbb29-cbfd-4422-b7de-6f7abddd2b17" => "4f2051e4-8d62-4ca1-80d5-a35694c1cb29", # Intermédiaire / B1 / B2
       "59b02d86-0a74-45eb-b891-76facd073794" => "5274d213-4364-4267-9e63-e5f49ab1a69b", # Avancé / C1 / C2
       "7427a756-90bb-48c5-a25c-1fac11861dbb" => "509eb999-0b3c-4e7b-bafa-5626e134c961" # Débutant / A1 / A2
-    }.fetch(foreign_language_id)
+    }.dig(foreign_language_id)
   end
 
   def rejection_reason_id(rejection_reason_id)
@@ -338,7 +372,7 @@ namespace :import do
       "38bbaa95-0d5f-4acb-b12f-5ac3bea722ab" => "8de2c347-4425-4189-bd21-5a6d843a21dd", # EMPLOYEUR - PROFIL INADAPTE SAVOIR ETRE
       "33e337cd-f820-4de6-b067-717b8e8f3b36" => "a43abecb-2ac0-4509-b6c2-aad0f3c41cc7", # EMPLOYEUR - REMUNERATION
       "edee7679-4258-40ed-b8f9-c47279e335e2" => "402a1f85-9b1a-4d45-816f-e4ffe9d63db6" # EMPLOYEUR - SECURITE
-    }.fetch(rejection_reason_id)
+    }.dig(rejection_reason_id)
   end
 
   def job_application_file_type_id(job_application_file_type_id)
