@@ -124,8 +124,8 @@ namespace :import do
   task user_profiles: :environment do
     import_json("profiles.json").select do |raw|
       Profile.find_by(id: raw["id"]).nil? && raw["profileable_type"] != "User"
-    end.each do |raw|
-      puts "Importing user profile: #{raw["id"]}"
+    end.each_with_index do |raw, index|
+      puts "Importing user profile: #{raw["id"]} (#{index + 1})"
 
       profile = Profile.new(
         raw.except(
@@ -145,7 +145,7 @@ namespace :import do
           File.write(resume_file_name, content)
           profile.resume = File.open(resume_file_name)
         rescue OpenURI::HTTPError => e
-          puts "Failed to download photo for user: #{raw["email"]} => #{e}"
+          puts "Failed to download resume for profile: #{raw["id"]} => #{e}"
           profile.resume = nil
         end
       end
@@ -203,6 +203,41 @@ namespace :import do
       job_application.save(validate: false)
     end
     File.delete("job_applications.json")
+  end
+
+  task job_application_profiles: :environment do
+    import_json("profiles.json").select do |raw|
+      Profile.find_by(id: raw["id"]).nil? && raw["profileable_type"] != "JobApplication"
+    end.each_with_index do |raw, index|
+      puts "Importing job application profile: #{raw["id"]} (#{index + 1})"
+
+      profile = Profile.new(
+        raw.except(
+          "availability_range_id",
+          "age_range_id"
+        ).merge(
+          study_level_id: study_level_id(raw["study_level_id"]),
+          experience_level_id: experience_level_id(raw["experience_level_id"])
+        )
+      )
+
+      resume_file_name = raw["resume_file_name"]
+      if resume_file_name.present?
+        begin
+          url = "https://ict-tct.contractuels.civils.defense.gouv.fr/downloads/#{raw["id"]}?resource_type=Profile&attribute_name=resume"
+          content = URI.open(url, "X-Download-Secret-Key" => ENV["DOWNLOAD_SECRET_KEY"]).read.force_encoding("UTF-8") # rubocop:disable Security/Open
+          File.write(resume_file_name, content)
+          profile.resume = File.open(resume_file_name)
+        rescue OpenURI::HTTPError => e
+          puts "Failed to download resume for profile: #{raw["id"]} => #{e}"
+          profile.resume = nil
+        end
+      end
+
+      profile.save(validate: false)
+      File.delete(resume_file_name) if resume_file_name.present? && File.exist?(resume_file_name)
+    end
+    File.delete("profiles.json")
   end
 
   private
