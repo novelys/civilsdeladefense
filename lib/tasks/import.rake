@@ -91,6 +91,8 @@ namespace :import do
 
   task users: :environment do
     import_json("users.json").each_with_index do |raw, index|
+      photo_filename = raw["photo_file_name"]
+
       user = User.find_by(id: raw["id"])
       puts "User already present: #{raw["id"]}" && next if user.present?
 
@@ -100,19 +102,7 @@ namespace :import do
       puts "Importing user: #{raw["email"]} (#{index + 1})"
       user = User.new(raw.except("organization_id", "gender").merge(organization))
 
-      photo_filename = raw["photo_file_name"]
-      if photo_filename.present?
-        begin
-          url = "https://ict-tct.contractuels.civils.defense.gouv.fr/downloads/#{raw["id"]}?resource_type=User&attribute_name=photo"
-          content = URI.open(url, "X-Download-Secret-Key" => ENV["DOWNLOAD_SECRET_KEY"]).read.force_encoding("UTF-8") # rubocop:disable Security/Open
-          File.write(photo_filename, content)
-          user.photo = File.open(photo_filename)
-        rescue OpenURI::HTTPError => e
-          puts "Failed to download photo for user: #{raw["email"]} => #{e}"
-          user.photo = nil
-        end
-      end
-
+      user.photo = download("User", "photo", raw["id"], photo_filename) if photo_filename.present?
       user.skip_confirmation!
       user.save(validate: false)
 
@@ -127,6 +117,8 @@ namespace :import do
     end.each_with_index do |raw, index|
       puts "Importing user profile: #{raw["id"]} (#{index + 1})"
 
+      resume_file_name = raw["resume_file_name"]
+
       profile = Profile.new(
         raw.except(
           "availability_range_id",
@@ -136,21 +128,9 @@ namespace :import do
           experience_level_id: experience_level_id(raw["experience_level_id"])
         )
       )
-
-      resume_file_name = raw["resume_file_name"]
-      if resume_file_name.present?
-        begin
-          url = "https://ict-tct.contractuels.civils.defense.gouv.fr/downloads/#{raw["id"]}?resource_type=Profile&attribute_name=resume"
-          content = URI.open(url, "X-Download-Secret-Key" => ENV["DOWNLOAD_SECRET_KEY"]).read.force_encoding("UTF-8") # rubocop:disable Security/Open
-          File.write(resume_file_name, content)
-          profile.resume = File.open(resume_file_name)
-        rescue OpenURI::HTTPError => e
-          puts "Failed to download resume for profile: #{raw["id"]} => #{e}"
-          profile.resume = nil
-        end
-      end
-
+      profile.resume = download("Profile", "resume", raw["id"], resume_file_name) if resume_file_name.present?
       profile.save(validate: false)
+
       File.delete(resume_file_name) if resume_file_name.present? && File.exist?(resume_file_name)
     end
     File.delete("profiles.json")
@@ -211,6 +191,8 @@ namespace :import do
     end.each_with_index do |raw, index|
       puts "Importing job application profile: #{raw["id"]} (#{index + 1})"
 
+      resume_file_name = raw["resume_file_name"]
+
       profile = Profile.new(
         raw.except(
           "availability_range_id",
@@ -220,21 +202,9 @@ namespace :import do
           experience_level_id: experience_level_id(raw["experience_level_id"])
         )
       )
-
-      resume_file_name = raw["resume_file_name"]
-      if resume_file_name.present?
-        begin
-          url = "https://ict-tct.contractuels.civils.defense.gouv.fr/downloads/#{raw["id"]}?resource_type=Profile&attribute_name=resume"
-          content = URI.open(url, "X-Download-Secret-Key" => ENV["DOWNLOAD_SECRET_KEY"]).read.force_encoding("UTF-8") # rubocop:disable Security/Open
-          File.write(resume_file_name, content)
-          profile.resume = File.open(resume_file_name)
-        rescue OpenURI::HTTPError => e
-          puts "Failed to download resume for profile: #{raw["id"]} => #{e}"
-          profile.resume = nil
-        end
-      end
-
+      profile.resume = download("Profile", "resume", raw["id"], resume_file_name) if resume_file_name.present?
       profile.save(validate: false)
+
       File.delete(resume_file_name) if resume_file_name.present? && File.exist?(resume_file_name)
     end
     File.delete("profiles.json")
@@ -246,20 +216,22 @@ namespace :import do
     end.each_with_index do |raw, index|
       puts "Importing job application file: #{raw["id"]} (#{index + 1})"
 
-      job_application_file = JobApplicationFile.new(raw.except(:content_file_name))
-
       content_file_name = raw["content_file_name"]
-      begin
-        url = "https://ict-tct.contractuels.civils.defense.gouv.fr/downloads/#{raw["id"]}?resource_type=JobApplicationFile&attribute_name=content"
-        content = URI.open(url, "X-Download-Secret-Key" => ENV["DOWNLOAD_SECRET_KEY"]).read.force_encoding("UTF-8") # rubocop:disable Security/Open
-        File.write(content_file_name, content)
-        job_application_file.content = File.open(content_file_name)
-      rescue OpenURI::HTTPError => e
-        puts "Failed to download content for job application file: #{raw["id"]} => #{e}"
-        job_application_file.content = nil
-      end
 
+      attributes = raw.except(:content_file_name)
+      job_application_file_type_id = if JobApplicationFileType.exists?(id: raw["job_application_file_type_id"])
+        raw["job_application_file_type_id"]
+      else
+        job_application_file_type_id(raw["job_application_file_type_id"])
+      end
+      attributes = attributes.merge(job_application_file_type_id: job_application_file_type_id)
+
+      job_application_file = JobApplicationFile.new(attributes)
+      if content_file_name.present?
+        job_application_file.content = download("JobApplicationFile", "content", raw["id"], content_file_name)
+      end
       job_application_file.save(validate: false)
+
       File.delete(content_file_name) if content_file_name.present? && File.exist?(content_file_name)
     end
     File.delete("job_application_files.json")
@@ -270,6 +242,16 @@ namespace :import do
   def import_json(file_name)
     Aws::S3::Resource.new.bucket("erecrutement").object(file_name).download_file(file_name)
     JSON.parse(File.read(file_name)).sort_by { |item| item["created_at"] }
+  end
+
+  def download(resource_type, attribute_name, id, file_name)
+    url = "https://ict-tct.contractuels.civils.defense.gouv.fr/downloads/#{id}?resource_type=#{resource_type}&attribute_name=#{attribute_name}"
+    content = URI.open(url, "X-Download-Secret-Key" => ENV["DOWNLOAD_SECRET_KEY"]).read.force_encoding("UTF-8") # rubocop:disable Security/Open
+    File.write(file_name, content)
+    File.open(file_name)
+  rescue OpenURI::HTTPError => e
+    puts "Failed to download content for job application file: #{id} => #{e}"
+    nil
   end
 
   def organization
