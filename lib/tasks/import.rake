@@ -240,6 +240,31 @@ namespace :import do
     File.delete("profiles.json")
   end
 
+  task job_application_files: :environment do
+    import_json("job_application_files.json").select do |raw|
+      JobApplicationFile.find_by(id: raw["id"]).nil?
+    end.each_with_index do |raw, index|
+      puts "Importing job application file: #{raw["id"]} (#{index + 1})"
+
+      job_application_file = JobApplicationFile.new(raw.except(:content_file_name))
+
+      content_file_name = raw["content_file_name"]
+      begin
+        url = "https://ict-tct.contractuels.civils.defense.gouv.fr/downloads/#{raw["id"]}?resource_type=JobApplicationFile&attribute_name=content"
+        content = URI.open(url, "X-Download-Secret-Key" => ENV["DOWNLOAD_SECRET_KEY"]).read.force_encoding("UTF-8") # rubocop:disable Security/Open
+        File.write(content_file_name, content)
+        job_application_file.content = File.open(content_file_name)
+      rescue OpenURI::HTTPError => e
+        puts "Failed to download content for job application file: #{raw["id"]} => #{e}"
+        job_application_file.content = nil
+      end
+
+      job_application_file.save(validate: false)
+      File.delete(content_file_name) if content_file_name.present? && File.exist?(content_file_name)
+    end
+    File.delete("job_application_files.json")
+  end
+
   private
 
   def import_json(file_name)
