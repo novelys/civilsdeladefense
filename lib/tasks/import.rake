@@ -166,7 +166,7 @@ namespace :import do
       job_offer.save(validate: false)
     end
     File.delete("job_offers.json")
-    File.delete("administrators.json")
+    File.delete("administrators.json") if File.exist?("administrators.json")
   end
 
   task job_applications: :environment do
@@ -184,7 +184,7 @@ namespace :import do
       job_application.save(validate: false)
     end
     File.delete("job_applications.json")
-    File.delete("users.json")
+    File.delete("users.json") if File.exist?("users.json")
   end
 
   task job_application_profiles: :environment do
@@ -248,6 +248,20 @@ namespace :import do
       BenefitJobOffer.create!(raw)
     end
     File.delete("benefit_job_offers.json")
+  end
+
+  task bookmarks: :environment do
+    import_json("bookmarks.json").select do |raw|
+      Bookmark.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing bookmark: #{raw["id"]}"
+
+      attributes = raw
+      attributes = attributes.merge(user_id: user_mapping[raw["user_id"]]) unless User.exists?(id: raw["user_id"])
+      Bookmark.create!(attributes)
+    end
+    File.delete("bookmarks.json")
+    File.delete("users.json") if File.exist?("users.json")
   end
 
   private
