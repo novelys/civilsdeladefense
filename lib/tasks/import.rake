@@ -166,6 +166,7 @@ namespace :import do
       job_offer.save(validate: false)
     end
     File.delete("job_offers.json")
+    File.delete("administrators.json")
   end
 
   task job_applications: :environment do
@@ -183,6 +184,7 @@ namespace :import do
       job_application.save(validate: false)
     end
     File.delete("job_applications.json")
+    File.delete("users.json")
   end
 
   task job_application_profiles: :environment do
@@ -235,6 +237,17 @@ namespace :import do
       File.delete(content_file_name) if content_file_name.present? && File.exist?(content_file_name)
     end
     File.delete("job_application_files.json")
+  end
+
+  task benefit_job_offers: :environment do
+    import_json("benefit_job_offers.json").select do |raw|
+      BenefitJobOffer.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing benefit job offer: #{raw["id"]}"
+
+      BenefitJobOffer.create!(raw)
+    end
+    File.delete("benefit_job_offers.json")
   end
 
   private
