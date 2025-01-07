@@ -113,21 +113,19 @@ namespace :import do
 
   task user_profiles: :environment do
     import_json("profiles.json").select do |raw|
-      Profile.find_by(id: raw["id"]).nil? && raw["profileable_type"] != "User"
+      Profile.find_by(id: raw["id"]).nil? && raw["profileable_type"] == "User"
     end.each_with_index do |raw, index|
       puts "Importing user profile: #{raw["id"]} (#{index + 1})"
 
       resume_file_name = raw["resume_file_name"]
 
-      profile = Profile.new(
-        raw.except(
-          "availability_range_id",
-          "age_range_id"
-        ).merge(
-          study_level_id: study_level_id(raw["study_level_id"]),
-          experience_level_id: experience_level_id(raw["experience_level_id"])
-        )
+      attributes = raw.except("availability_range_id", "age_range_id").merge(
+        study_level_id: study_level_id(raw["study_level_id"]),
+        experience_level_id: experience_level_id(raw["experience_level_id"])
       )
+      attributes = attributes.merge(profileable_id: user_mapping[raw["profileable_id"]]) unless User.exists?(id: raw["profileable_id"])
+
+      profile = Profile.new(attributes)
       profile.resume = download("Profile", "resume", raw["id"], resume_file_name) if resume_file_name.present?
       profile.save(validate: false)
 
@@ -189,21 +187,17 @@ namespace :import do
 
   task job_application_profiles: :environment do
     import_json("profiles.json").select do |raw|
-      Profile.find_by(id: raw["id"]).nil? && raw["profileable_type"] != "JobApplication"
+      Profile.find_by(id: raw["id"]).nil? && raw["profileable_type"] == "JobApplication"
     end.each_with_index do |raw, index|
       puts "Importing job application profile: #{raw["id"]} (#{index + 1})"
 
       resume_file_name = raw["resume_file_name"]
 
-      profile = Profile.new(
-        raw.except(
-          "availability_range_id",
-          "age_range_id"
-        ).merge(
-          study_level_id: study_level_id(raw["study_level_id"]),
-          experience_level_id: experience_level_id(raw["experience_level_id"])
-        )
+      attributes = raw.except("availability_range_id", "age_range_id").merge(
+        study_level_id: study_level_id(raw["study_level_id"]),
+        experience_level_id: experience_level_id(raw["experience_level_id"])
       )
+      profile = Profile.new(attributes)
       profile.resume = download("Profile", "resume", raw["id"], resume_file_name) if resume_file_name.present?
       profile.save(validate: false)
 
@@ -264,6 +258,17 @@ namespace :import do
     File.delete("users.json") if File.exist?("users.json")
   end
 
+  task department_profiles: :environment do
+    import_json("department_profiles.json").select do |raw|
+      DepartmentProfile.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing department profile: #{raw["id"]}"
+
+      DepartmentProfile.create!(raw.merge(department_id: department_id(raw["department_id"])))
+    end
+    File.delete("department_profiles.json")
+  end
+
   private
 
   def import_json(file_name)
@@ -296,6 +301,13 @@ namespace :import do
     @user_mapping ||= import_json("users.json").each_with_object({}) do |raw, hash|
       hash[raw["id"]] = User.find_by(email: raw["email"]).id
     end
+  end
+
+  def department_id(department_id)
+    # Key: id DGA, Value: id CVD
+    {
+      "914cad4e-0470-4ef7-bb1d-91e3215824ff" => "2cdda303-24ff-4af6-a14f-eccc10c66bf5" # Aucun
+    }.dig(department_id)
   end
 
   def sector_id(sector_id)
