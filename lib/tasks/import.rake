@@ -269,6 +269,22 @@ namespace :import do
     File.delete("department_profiles.json")
   end
 
+  task emails: :environment do
+    import_json("emails.json").select do |raw|
+      Email.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing email: #{raw["id"]}"
+
+      attributes = raw
+      attributes = attributes.merge(sender_id: admin_mapping[raw["sender_id"]]) unless Administrator.exists?(id: raw["sender_id"])
+      email = Email.new(attributes)
+      email.save(validate: false)
+    end
+
+    File.delete("emails.json")
+    File.delete("administrators.json") if File.exist?("administrators.json")
+  end
+
   private
 
   def import_json(file_name)
