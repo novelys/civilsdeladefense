@@ -214,7 +214,7 @@ namespace :import do
 
       content_file_name = raw["content_file_name"]
 
-      attributes = raw.except(:content_file_name)
+      attributes = raw.except(:content_file_name).merge(secured_content: false)
       job_application_file_type_id = if JobApplicationFileType.exists?(id: raw["job_application_file_type_id"])
         raw["job_application_file_type_id"]
       else
@@ -229,6 +229,8 @@ namespace :import do
       job_application_file.save(validate: false)
 
       File.delete(content_file_name) if content_file_name.present? && File.exist?(content_file_name)
+    rescue Socket::ResolutionError => e
+      puts "Failed to import job application file type: #{raw["name"]} => #{e}"
     end
     File.delete("job_application_files.json")
   end
@@ -270,6 +272,7 @@ namespace :import do
   end
 
   task emails: :environment do
+    Email.skip_callback(:save, :after, :compute_job_application_notifications_counter)
     import_json("emails.json").select do |raw|
       Email.find_by(id: raw["id"]).nil?
     end.each do |raw|
@@ -281,8 +284,28 @@ namespace :import do
       email.save(validate: false)
     end
 
+    Email.set_callback(:save, :after, :compute_job_application_notifications_counter)
     File.delete("emails.json")
     File.delete("administrators.json") if File.exist?("administrators.json")
+  end
+
+  task email_attachments: :environment do
+    import_json("email_attachments.json").select do |raw|
+      EmailAttachment.find_by(id: raw["id"]).nil?
+    end.each_with_index do |raw, index|
+      puts "Importing email attachment: #{raw["id"]} (#{index + 1})"
+
+      content_file_name = raw["content"]
+
+      email_attachment = EmailAttachment.new(raw.merge(secured_content: false))
+      email_attachment.content = download("EmailAttachment", "content", raw["id"], content_file_name) if content_file_name.present?
+      email_attachment.save(validate: false)
+
+      File.delete(content_file_name) if content_file_name.present? && File.exist?(content_file_name)
+    rescue Socket::ResolutionError => e
+      puts "Failed to import email attachment: #{raw["name"]} => #{e}"
+    end
+    File.delete("email_attachments.json")
   end
 
   private
