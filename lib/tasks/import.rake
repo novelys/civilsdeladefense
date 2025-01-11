@@ -336,6 +336,34 @@ namespace :import do
     File.delete("administrators.json") if File.exist?("administrators.json")
   end
 
+  task preferred_users_lists: :environment do
+    import_json("preferred_users_lists.json").select do |raw|
+      PreferredUsersList.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing preferred user list: #{raw["id"]}"
+
+      attributes = raw
+      attributes = attributes.merge(administrator_id: admin_mapping[raw["administrator_id"]]) unless Administrator.exists?(id: raw["administrator_id"])
+      PreferredUsersList.create!(attributes)
+    end
+    File.delete("preferred_users_lists.json")
+    File.delete("administrators.json") if File.exist?("administrators.json")
+  end
+
+  task preferred_users: :environment do
+    import_json("preferred_users.json").select do |raw|
+      PreferredUser.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing preferred user: #{raw["id"]}"
+
+      attributes = raw
+      attributes = attributes.merge(user_id: user_mapping[raw["user_id"]]) unless User.exists?(id: raw["user_id"])
+      PreferredUser.create!(attributes)
+    end
+    File.delete("preferred_users.json")
+    File.delete("users.json") if File.exist?("users.json")
+  end
+
   private
 
   def import_json(file_name)
