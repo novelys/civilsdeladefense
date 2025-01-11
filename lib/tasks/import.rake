@@ -308,6 +308,20 @@ namespace :import do
     File.delete("email_attachments.json")
   end
 
+  task job_offer_actors: :environment do
+    import_json("job_offer_actors.json").select do |raw|
+      JobOfferActor.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing job offer actor: #{raw["id"]}"
+
+      attributes = raw
+      attributes = attributes.merge(administrator_id: admin_mapping[raw["administrator_id"]]) unless Administrator.exists?(id: raw["administrator_id"])
+      JobOfferActor.create!(attributes)
+    end
+    File.delete("job_offer_actors.json")
+    File.delete("administrators.json") if File.exist?("administrators.json")
+  end
+
   private
 
   def import_json(file_name)
