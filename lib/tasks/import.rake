@@ -364,6 +364,21 @@ namespace :import do
     File.delete("users.json") if File.exist?("users.json")
   end
 
+  task profile_foreign_languages: :environment do
+    import_json("profile_foreign_languages.json").select do |raw|
+      ProfileForeignLanguage.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing profile foreign language: #{raw["id"]}"
+
+      attributes = raw.merge(
+        foreign_language_id: foreign_language_id(raw["foreign_language_id"]),
+        foreign_language_level_id: foreign_language_level_id(raw["foreign_language_level_id"])
+      )
+      ProfileForeignLanguage.create!(attributes)
+    end
+    File.delete("profile_foreign_languages.json")
+  end
+
   private
 
   def import_json(file_name)
@@ -556,7 +571,7 @@ namespace :import do
     }.dig(experience_level_id)
   end
 
-  def foreign_language_id(foreign_language_id)
+  def foreign_language_level_id(foreign_language_id)
     # Key: id DGA, Value: id CVD
     {
       "188dbb29-cbfd-4422-b7de-6f7abddd2b17" => "4f2051e4-8d62-4ca1-80d5-a35694c1cb29", # Intermédiaire / B1 / B2
