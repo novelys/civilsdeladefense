@@ -322,6 +322,20 @@ namespace :import do
     File.delete("administrators.json") if File.exist?("administrators.json")
   end
 
+  task messages: :environment do
+    import_json("messages.json").select do |raw|
+      Message.find_by(id: raw["id"]).nil?
+    end.each do |raw|
+      puts "Importing message: #{raw["id"]}"
+
+      attributes = raw
+      attributes = attributes.merge(administrator_id: admin_mapping[raw["administrator_id"]]) unless Administrator.exists?(id: raw["administrator_id"])
+      Message.create!(attributes)
+    end
+    File.delete("messages.json")
+    File.delete("administrators.json") if File.exist?("administrators.json")
+  end
+
   private
 
   def import_json(file_name)
